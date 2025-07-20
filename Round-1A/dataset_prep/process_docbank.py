@@ -5,18 +5,38 @@ from tqdm import tqdm
 from common_features import extract_features
 
 ANNOTATIONS_DIR = r'c:\Users\Sanoja\Desktop\Adobe\Adobe-Hackathon-2025\Datasets\DocBank\docbank_training_data_gpu\annotations'
-OUTPUT_CSV = 'docbank_features.csv'
+OUTPUT_CSV = 'docbank_group.csv'
+VERTICAL_MERGE_THRESHOLD = 20
 
-def extract_all_font_sizes(objs):
-    font_sizes = []
-    for obj in objs:
-        size = obj.get('font') or obj.get('size')
-        try:
-            size = float(size)
-            font_sizes.append(size)
-        except:
-            continue
-    return font_sizes
+def merge_blocks(group):
+    if not group:
+        return None
+
+    texts = [obj['text'].strip() for obj in group if isinstance(obj['text'], str)]
+    if not texts:
+        return None
+
+    merged_text = ' '.join(texts)
+    x1s, y1s, x2s, y2s = zip(*[obj.get('bbox') or obj.get('box') or [0, 0, 0, 0] for obj in group])
+    merged_bbox = [min(x1s), min(y1s), max(x2s), max(y2s)]
+
+    bold = any(obj.get('bold', False) for obj in group)
+    italic = any(obj.get('italic', False) for obj in group)
+    underline = any(obj.get('underline', False) for obj in group)
+    label = group[0].get('label', '')
+    page_width = group[0].get('page_width', 1024)
+    page_height = group[0].get('page_height', 1024)
+
+    return {
+        "text": merged_text,
+        "bbox": merged_bbox,
+        "bold": bold,
+        "italic": italic,
+        "underline": underline,
+        "label": label,
+        "page_width": page_width,
+        "page_height": page_height
+    }
 
 def process_json_file(file_path, file_id):
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -27,93 +47,96 @@ def process_json_file(file_path, file_id):
             return []
 
     objs = []
-    page_dims = []
-
-    # Handle dict format
     if isinstance(json_data, dict) and 'pages' in json_data:
         for page in json_data['pages']:
-            page_objs = page.get('objs', [])
-            objs.extend(page_objs)
-            page_dims.append((page.get('width', 1024), page.get('height', 1024)))
+            pw, ph = page.get('width', 1024), page.get('height', 1024)
+            for obj in page.get('objs', []):
+                obj['page_width'] = pw
+                obj['page_height'] = ph
+                objs.append(obj)
     elif isinstance(json_data, list):
         objs = json_data
-        page_dims = [(1024, 1024)]  # fallback
     else:
-        print(f"⚠️ Unknown format in file: {file_path}")
         return []
 
-    all_font_sizes = extract_all_font_sizes(objs)
+    objs = [o for o in objs if isinstance(o.get('text'), str) and o['text'].strip()]
+    objs.sort(key=lambda o: (o.get('label', ''), (o.get('bbox') or o.get('box') or [0, 0, 0, 0])[1]))
+
+    all_font_sizes = []
     rows = []
-    prev_obj = None
+    current_group = []
+    last_y = last_label = None
 
-    for i, obj in enumerate(objs):
-        text = obj.get('text', '')
-        if not isinstance(text, str):
-            continue
-        text = text.strip()
-        if not text:
-            continue
-
-        # Try bbox from multiple keys
+    for obj in objs:
         bbox = obj.get('bbox') or obj.get('box') or [0, 0, 0, 0]
-        if not isinstance(bbox, list) or len(bbox) != 4:
-            bbox = [0, 0, 0, 0]
-
-        font_size = obj.get('font') or obj.get('size', 12)
-        bold = obj.get('bold', False)
-        italic = obj.get('italic', False)
-        underline = obj.get('underline', False)
         label = obj.get('label', '')
+        y_top = bbox[1]
 
-        page_width, page_height = page_dims[0] if page_dims else (1024, 1024)
+        if not current_group or label != last_label or abs(y_top - last_y) > VERTICAL_MERGE_THRESHOLD:
+            merged = merge_blocks(current_group)
+            if merged:
+                features = extract_features(
+                    text=merged['text'],
+                    bold=merged['bold'],
+                    italic=merged['italic'],
+                    underline=merged['underline'],
+                    bbox=merged['bbox'],
+                    prev_obj=None,
+                    page_width=merged['page_width'],
+                    page_height=merged['page_height'],
+                    lang='en',
+                    all_font_sizes=all_font_sizes,
+                    page_number=1,
+                    label=merged['label']
+                )
+                features['FileID'] = file_id
+                rows.append(features)
+            current_group = []
 
-        features = extract_features(
-            text=text,
-            font_size=font_size,
-            bold=bold,
-            italic=italic,
-            underline=underline,
-            bbox=bbox,
-            prev_obj=prev_obj,
-            page_width=page_width,
-            page_height=page_height,
-            lang='en',
-            all_font_sizes=all_font_sizes,
-            page_number=1  # You can update this if your format includes page_id
-        )
+        current_group.append(obj)
+        last_y = y_top
+        last_label = label
 
-        features['label'] = label
-        features['FileID'] = file_id
-        rows.append(features)
-
-        prev_obj = {'bbox': bbox}
+    if current_group:
+        merged = merge_blocks(current_group)
+        if merged:
+            features = extract_features(
+                text=merged['text'],
+                bold=merged['bold'],
+                italic=merged['italic'],
+                underline=merged['underline'],
+                bbox=merged['bbox'],
+                prev_obj=None,
+                page_width=merged['page_width'],
+                page_height=merged['page_height'],
+                lang='en',
+                all_font_sizes=all_font_sizes,
+                page_number=1,
+                label=merged['label']
+            )
+            features['FileID'] = file_id
+            rows.append(features)
 
     return rows
 
 def process_all_annotations():
     all_rows = []
     json_files = [f for f in os.listdir(ANNOTATIONS_DIR) if f.endswith('.json')]
-    print(f"🔍 Looking in: {ANNOTATIONS_DIR}")
-    print(f"📄 Processing {len(json_files)} JSON files...")
+    print(f"🔍 Processing {len(json_files)} files...")
 
     for file_name in tqdm(json_files):
         file_path = os.path.join(ANNOTATIONS_DIR, file_name)
         file_id = os.path.splitext(file_name)[0]
-        rows = process_json_file(file_path, file_id)
-        all_rows.extend(rows)
+        all_rows.extend(process_json_file(file_path, file_id))
 
     if all_rows:
-        keys = list(all_rows[0].keys())
-        try:
-            with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=keys)
-                writer.writeheader()
-                writer.writerows(all_rows)
-            print(f"\n✅ Done. CSV saved to: {OUTPUT_CSV} ({len(all_rows)} rows)")
-        except PermissionError:
-            print(f"\n❌ Error: Permission denied. Close Excel if file is open: {OUTPUT_CSV}")
+        with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=all_rows[0].keys())
+            writer.writeheader()
+            writer.writerows(all_rows)
+        print(f"\n✅ Saved to {OUTPUT_CSV} with {len(all_rows)} rows.")
     else:
-        print("\n⚠️ No data extracted. CSV not created.")
+        print("\n⚠️ No data extracted.")
 
 if __name__ == "__main__":
     process_all_annotations()

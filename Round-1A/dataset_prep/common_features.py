@@ -2,50 +2,47 @@ import re
 import numpy as np
 
 def extract_features(
-    text, font_size, bold, italic, underline, bbox, prev_obj,
-    page_width, page_height, lang, all_font_sizes, page_number
+    text, bold, italic, underline, bbox, prev_obj,
+    page_width, page_height, lang, all_font_sizes, page_number, label
 ):
-    # 1. Safely extract bounding box
+    # Extract bounding box
     if not isinstance(bbox, list) or len(bbox) != 4:
         x1 = y1 = x2 = y2 = 0
     else:
         x1, y1, x2, y2 = bbox
 
-    bbox_width = x2 - x1
-    bbox_height = y2 - y1
-    area = page_width * page_height if page_width and page_height else 1
+    bbox_width = max(x2 - x1, 1)
+    bbox_height = max(y2 - y1, 1)
+    area = max(page_width * page_height, 1)
 
-    # 2. Convert font size safely
-    try:
-        font_size = float(font_size)
-    except:
-        font_size = 12.0
-
-    # 3. Font size rank and relative comparison
-    try:
-        font_size_rank = sorted(set(all_font_sizes), reverse=True).index(font_size) + 1
-    except:
-        font_size_rank = 0
-
-    relative_font_size = font_size / (np.mean(all_font_sizes) + 1e-6) if all_font_sizes else 1.0
-
-    # 4. Capitalization features
-    letters = re.sub(r'[^a-zA-Z]', '', text)
-    caps = sum(1 for c in letters if c.isupper())
-    caps_ratio = caps / len(letters) if letters else 0
-
-    # 5. Word-based features
+    # Word features
     words = text.split()
     word_count = len(words)
+
+    # --- Estimated Font Size ---
+    estimated_font_size = bbox_height / word_count if word_count > 0 else bbox_height
+    estimated_font_size = min(max(estimated_font_size, 5), 50)  # Clamp to realistic range
+
+    all_font_sizes.append(estimated_font_size)
+    relative_font_size = estimated_font_size / (np.mean(all_font_sizes) + 1e-6)
+
+    try:
+        font_size_rank = sorted(set(all_font_sizes), reverse=True).index(estimated_font_size) + 1
+    except ValueError:
+        font_size_rank = 0
+
+    # Capitalization
+    letters = re.sub(r'[^a-zA-Z]', '', text)
+    caps_ratio = sum(1 for c in letters if c.isupper()) / len(letters) if letters else 0
     title_case_ratio = sum(1 for w in words if w.istitle()) / word_count if word_count else 0
-    has_numbering = bool(re.match(r'^\(?\d+[\.\)]', text.strip()))
+    has_numbering = bool(re.match(r'^[\(\[]?\d+[\.\):\]]?', text.strip()))
     punctuation = int(bool(re.search(r'[.,:;!?]', text)))
 
-    # 6. Whitespace above from previous object
+    # Whitespace
     whitespace_above = y1 - prev_obj['bbox'][3] if prev_obj and 'bbox' in prev_obj else 0
-    whitespace_below = 0  # Placeholder if needed later
+    whitespace_below = 0
 
-    # 7. Alignment feature (based on horizontal center)
+    # Alignment
     center_x = (x1 + x2) / 2
     if center_x < page_width * 0.33:
         alignment = 'left'
@@ -54,14 +51,25 @@ def extract_features(
     else:
         alignment = 'center'
 
-    # 8. Relative vertical position on page
-    relative_position = (y1 + y2) / 2 / page_height if page_height else 0.5
+    # Relative position
+    relative_position = (y1 + y2) / 2 / page_height
     position_in_page = f"{int(relative_position * 100)}%"
 
-    # Return dictionary of all features
+    # Heading levels
+    heading_level = ""
+    if font_size_rank == 1:
+        heading_level = "H1"
+    elif font_size_rank == 2:
+        heading_level = "H2"
+    elif font_size_rank == 3:
+        heading_level = "H3"
+
+    # Combine with document label
+    combined_label = f"{label}|{heading_level}" if heading_level else label
+
     return {
         "text": text,
-        "font_size": round(font_size, 2),
+        "font_size": round(estimated_font_size, 2),
         "font_size_rank": font_size_rank,
         "relative_font_size": round(relative_font_size, 3),
         "bold": bool(bold),
@@ -84,5 +92,7 @@ def extract_features(
         "position_in_page": position_in_page,
         "alignment": alignment,
         "lang": lang,
-        "page_number": page_number
+        "page_number": page_number,
+        "heading_level": heading_level,
+        "label": combined_label
     }

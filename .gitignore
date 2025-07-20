@@ -3,5 +3,5 @@ Datasets/
 # Ignore Python cache files and folders
 __pycache__/
 *.py[cod]
-Round-1A/dataset_prep/docbank_features.csv
+Round-1A/dataset_prep/docbank_group.csv
 
