@@ -3,7 +3,7 @@ Datasets/
 # Ignore Python cache files and folders
 __pycache__/
 *.py[cod]
-Round-1A/dataset_prep/docbank_group.csv
-Round-1A/dataset_prep/doclaynet_group.csv
-Round-1A/dataset_prep/merged_features.csv
+Round-1A/dataset_prep/docbank_group2.csv
+Round-1A/dataset_prep/doclaynet_group2.csv
+Round-1A/dataset_prep/merged_features2.csv
 

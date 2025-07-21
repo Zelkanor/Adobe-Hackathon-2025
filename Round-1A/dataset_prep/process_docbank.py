@@ -1,22 +1,37 @@
 import os
 import json
 import csv
+import re
 from tqdm import tqdm
 from common_features import extract_features
 
 ANNOTATIONS_DIR = r'c:\Users\Sanoja\Desktop\Adobe\Adobe-Hackathon-2025\Datasets\DocBank\docbank_training_data_gpu\annotations'
-OUTPUT_CSV = 'docbank_group.csv'
+OUTPUT_CSV = 'docbank_group2.csv'
 VERTICAL_MERGE_THRESHOLD = 20
+
+def filter_obj(o):
+    text = o.get('text', '').strip()
+    if not text:
+        return False
+    # Removes all variants like ##LTLine##, ###LTIMAGE### etc.
+    if re.match(r'^#+LT', text):
+        return False
+    return True
 
 def merge_blocks(group):
     if not group:
         return None
 
-    texts = [obj['text'].strip() for obj in group if isinstance(obj['text'], str)]
+    # Only keep objects passing the filter
+    texts = [obj['text'].strip() for obj in group if isinstance(obj['text'], str) and filter_obj(obj)]
     if not texts:
         return None
 
     merged_text = ' '.join(texts)
+    # Still skip if merged_text is just a sequence of LT tokens
+    if not merged_text or re.match(r'^(#+LT\w+#+\s*)+$', merged_text):
+        return None
+
     x1s, y1s, x2s, y2s = zip(*[obj.get('bbox') or obj.get('box') or [0, 0, 0, 0] for obj in group])
     merged_bbox = [min(x1s), min(y1s), max(x2s), max(y2s)]
 
@@ -59,63 +74,68 @@ def process_json_file(file_path, file_id):
     else:
         return []
 
-    objs = [o for o in objs if isinstance(o.get('text'), str) and o['text'].strip()]
+    # Filter out unwanted rows, including blank and LT noise tokens
+    objs = [o for o in objs if isinstance(o.get('text'), str) and filter_obj(o)]
     objs.sort(key=lambda o: (o.get('label', ''), (o.get('bbox') or o.get('box') or [0, 0, 0, 0])[1]))
 
-    all_font_sizes = []
-    rows = []
-    current_group = []
+    page_font_sizes = []
+    merged_blocks = []
+    temp_group = []
     last_y = last_label = None
-
     for obj in objs:
         bbox = obj.get('bbox') or obj.get('box') or [0, 0, 0, 0]
         label = obj.get('label', '')
         y_top = bbox[1]
 
-        if not current_group or label != last_label or abs(y_top - last_y) > VERTICAL_MERGE_THRESHOLD:
-            merged = merge_blocks(current_group)
-            if merged:
-                features = extract_features(
-                    text=merged['text'],
-                    bold=merged['bold'],
-                    italic=merged['italic'],
-                    underline=merged['underline'],
-                    bbox=merged['bbox'],
-                    prev_obj=None,
-                    page_width=merged['page_width'],
-                    page_height=merged['page_height'],
-                    lang='en',
-                    all_font_sizes=all_font_sizes,
-                    page_number=1,
-                    label=merged['label']
-                )
-                features['FileID'] = file_id
-                rows.append(features)
-            current_group = []
-
-        current_group.append(obj)
+        if not temp_group or label != last_label or abs(y_top - last_y) > VERTICAL_MERGE_THRESHOLD:
+            if temp_group:
+                merged = merge_blocks(temp_group)
+                if merged:
+                    merged_blocks.append(merged)
+                    # For font size collection
+                    bbox_height = merged['bbox'][3] - merged['bbox'][1]
+                    word_count = len([w for w in merged['text'].split() if w])
+                    estimated_font_size = bbox_height / word_count if word_count > 0 else bbox_height
+                    estimated_font_size = min(max(estimated_font_size, 5), 50)
+                    page_font_sizes.append(estimated_font_size)
+            temp_group = []
+        temp_group.append(obj)
         last_y = y_top
         last_label = label
 
-    if current_group:
-        merged = merge_blocks(current_group)
+    if temp_group:
+        merged = merge_blocks(temp_group)
         if merged:
-            features = extract_features(
-                text=merged['text'],
-                bold=merged['bold'],
-                italic=merged['italic'],
-                underline=merged['underline'],
-                bbox=merged['bbox'],
-                prev_obj=None,
-                page_width=merged['page_width'],
-                page_height=merged['page_height'],
-                lang='en',
-                all_font_sizes=all_font_sizes,
-                page_number=1,
-                label=merged['label']
-            )
-            features['FileID'] = file_id
-            rows.append(features)
+            merged_blocks.append(merged)
+            bbox_height = merged['bbox'][3] - merged['bbox'][1]
+            word_count = len([w for w in merged['text'].split() if w])
+            estimated_font_size = bbox_height / word_count if word_count > 0 else bbox_height
+            estimated_font_size = min(max(estimated_font_size, 5), 50)
+            page_font_sizes.append(estimated_font_size)
+
+    # Feature extraction with prev/next whitespace logic
+    rows = []
+    for i, merged in enumerate(merged_blocks):
+        prev_merged = merged_blocks[i-1] if i > 0 else None
+        next_merged = merged_blocks[i+1] if i < len(merged_blocks)-1 else None
+
+        features = extract_features(
+            text=merged['text'],
+            bold=merged['bold'],
+            italic=merged['italic'],
+            underline=merged['underline'],
+            bbox=merged['bbox'],
+            prev_obj=prev_merged,
+            next_obj=next_merged,  # <-- pass here!
+            page_width=merged['page_width'],
+            page_height=merged['page_height'],
+            lang='en',
+            page_font_sizes=page_font_sizes,
+            page_number=1,
+            label=merged['label']
+        )
+        features['FileID'] = file_id
+        rows.append(features)
 
     return rows
 

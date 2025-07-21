@@ -18,9 +18,9 @@ def append_docbank_to_doclay(docbank_csv, doclay_csv, output_csv):
     print(f"Merged file saved: {output_csv} (Total rows: {len(merged_df)})")
 
 if __name__ == '__main__':
-    docbank_csv = r"C:\Users\Sanoja\Desktop\Adobe\Adobe-Hackathon-2025\Round-1A\dataset_prep\docbank_group.csv"
-    doclay_csv = r"C:\Users\Sanoja\Desktop\Adobe\Adobe-Hackathon-2025\Round-1A\dataset_prep\doclaynet_group.csv"
-    output_csv = r"C:\Users\Sanoja\Desktop\Adobe\Adobe-Hackathon-2025\Round-1A\dataset_prep\merged_features.csv"
+    docbank_csv = r"C:\Users\Sanoja\Desktop\Adobe\Adobe-Hackathon-2025\Round-1A\dataset_prep\docbank_group2.csv"
+    doclay_csv = r"C:\Users\Sanoja\Desktop\Adobe\Adobe-Hackathon-2025\Round-1A\dataset_prep\doclaynet_group2.csv"
+    output_csv = r"C:\Users\Sanoja\Desktop\Adobe\Adobe-Hackathon-2025\Round-1A\dataset_prep\merged_features2.csv"
 
     append_docbank_to_doclay(docbank_csv, doclay_csv, output_csv)
 
