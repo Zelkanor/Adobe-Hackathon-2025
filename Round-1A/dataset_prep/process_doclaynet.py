@@ -6,7 +6,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 PDF_DIR = r"C:\Users\Sanoja\Desktop\Adobe\Adobe-Hackathon-2025\Datasets\DocLayNet\DocLayNetextra\PDF"
 OUTPUT_CSV = "doclaynet_group2.csv"
 MAX_WORKERS = 4 
-
+  
 def classify_text_block(text, font_size, fontname, italic, page_font_sizes):
     """Classifies a text block as H1, H2, H3, Paragraph, List, Caption."""
     if not page_font_sizes:
