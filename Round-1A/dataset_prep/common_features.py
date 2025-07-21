@@ -5,7 +5,7 @@ def extract_features(
     text, bold, italic, underline, bbox, prev_obj,
     page_width, page_height, lang, all_font_sizes, page_number, label
 ):
-    # Extract bounding box
+    
     if not isinstance(bbox, list) or len(bbox) != 4:
         x1 = y1 = x2 = y2 = 0
     else:
@@ -15,11 +15,9 @@ def extract_features(
     bbox_height = max(y2 - y1, 1)
     area = max(page_width * page_height, 1)
 
-    # Word features
     words = text.split()
     word_count = len(words)
 
-    # --- Estimated Font Size ---
     estimated_font_size = bbox_height / word_count if word_count > 0 else bbox_height
     estimated_font_size = min(max(estimated_font_size, 5), 50)  # Clamp to realistic range
 
@@ -31,18 +29,17 @@ def extract_features(
     except ValueError:
         font_size_rank = 0
 
-    # Capitalization
     letters = re.sub(r'[^a-zA-Z]', '', text)
     caps_ratio = sum(1 for c in letters if c.isupper()) / len(letters) if letters else 0
     title_case_ratio = sum(1 for w in words if w.istitle()) / word_count if word_count else 0
     has_numbering = bool(re.match(r'^[\(\[]?\d+[\.\):\]]?', text.strip()))
     punctuation = int(bool(re.search(r'[.,:;!?]', text)))
 
-    # Whitespace
+    
     whitespace_above = y1 - prev_obj['bbox'][3] if prev_obj and 'bbox' in prev_obj else 0
     whitespace_below = 0
 
-    # Alignment
+    
     center_x = (x1 + x2) / 2
     if center_x < page_width * 0.33:
         alignment = 'left'
@@ -51,11 +48,11 @@ def extract_features(
     else:
         alignment = 'center'
 
-    # Relative position
+    
     relative_position = (y1 + y2) / 2 / page_height
     position_in_page = f"{int(relative_position * 100)}%"
 
-    # Heading levels
+    
     heading_level = ""
     if font_size_rank == 1:
         heading_level = "H1"
@@ -64,7 +61,7 @@ def extract_features(
     elif font_size_rank == 3:
         heading_level = "H3"
 
-    # Combine with document label
+
     combined_label = f"{label}|{heading_level}" if heading_level else label
 
     return {

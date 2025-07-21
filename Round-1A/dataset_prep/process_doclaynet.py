@@ -5,7 +5,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 PDF_DIR = r"C:\Users\Sanoja\Desktop\Adobe\Adobe-Hackathon-2025\Datasets\DocLayNet\DocLayNetextra\PDF"
 OUTPUT_CSV = "doclaynet_group.csv"
-MAX_WORKERS = 4  # Adjust depending on your system
+MAX_WORKERS = 4 
 
 
 def classify_text_block(text, font_size, fontname, italic, all_font_sizes):
@@ -15,7 +15,7 @@ def classify_text_block(text, font_size, fontname, italic, all_font_sizes):
     if not all_font_sizes:
         return "Paragraph"
 
-    # Rank font sizes
+
     unique_sizes = sorted(set(all_font_sizes), reverse=True)
     h1_thresh = unique_sizes[0]
     h2_thresh = unique_sizes[1] if len(unique_sizes) > 1 else h1_thresh - 1
@@ -54,7 +54,7 @@ def process_pdf(file_path_id_tuple):
                 words = page.extract_words(extra_attrs=["fontname", "size"])
                 all_font_sizes.extend([w['size'] for w in words if 'size' in w])
 
-                # Group words into lines by their vertical (top) coordinate
+            
                 lines = {}
                 for w in words:
                     y0 = round(w['top'], 1)
