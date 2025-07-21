@@ -5,4 +5,5 @@ __pycache__/
 *.py[cod]
 Round-1A/dataset_prep/docbank_group.csv
 Round-1A/dataset_prep/doclaynet_group.csv
+Round-1A/dataset_prep/merged_features.csv
 
