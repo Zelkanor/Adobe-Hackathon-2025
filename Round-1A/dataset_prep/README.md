@@ -8,33 +8,27 @@ This README outlines how we prepared and extracted features from multiple public
 
 ---
 
-## 📂 Datasets Used & Why
+## 📂 Datasets Used
 
 We used three large-scale, diverse document layout datasets:
 
-- **DocBank**: Offers detailed semantic structure labels at word-level for academic documents.
+- **DocBank**: Offers academic and scientific document structures.
 - **DocLayNet**: A large annotated dataset of real-world PDF documents containing diverse layouts (text, tables, images).
-- **PubLayNet**: Focuses on publications and academic articles with semantic annotations.
+- **PubLayNet**: Focuses on publications and academic articles with labeled layout elements.
 
 **Why these datasets?**
 
-- They provide rich structural information aligned with the Round 1A objective: detecting headings and outlines.
+- They provide structural information aligned with the Round 1A objective: detecting headings and outlines.
 - They span multiple layouts and document types, enabling generalization.
-- Pre-annotated labels like `Title`, `Heading`, `Paragraph` etc., helped bootstrap supervised feature extraction.
+- Ideal for supervised heading- level extraction.
 
 ---
 
 ## 🧱 Dataset Processing Pipeline
 
-We built **modular processing pipelines** for each dataset that extract structural blocks, merge related objects, and compute a rich set of features per block.
-
-### 👇 Key Components:
-
-1. **Filtering and cleaning text blocks**
-2. **Merging semantically and spatially adjacent blocks**
-3. **Label inference (`H1`, `H2`, etc.) using font sizes and heuristics**
-4. **Feature extraction** using geometry, typography, linguistic and positional cues
-5. **Output as CSV**
+- Datasets were **downloaded from official GitHub sources**.
+- Each dataset was **processed using a custom script** to extract meaningful blocks and compute structured features.
+- The resulting CSV files were then **merged into one file**.
 
 ---
 
@@ -79,7 +73,7 @@ Central feature extractor for all datasets. Computes the following:
 
 ### `merge_csv.py`
 
-Final utility script to merge multiple processed datasets:
+Merged DocBank, DocLayNet CSV outputs into: 
 
 - `append_docbank_to_doclay(...)`: Merges two CSVs (DocLayNet + DocBank) and outputs a unified dataset.
 
@@ -146,13 +140,3 @@ Final utility script to merge multiple processed datasets:
     ```bash
     merged_features2.csv
     ```
-
----
-
-## 🧪 Notes
-
-- Works offline (no internet needed)
-- Compliant with size and speed constraints (<200MB, <10s)
-- Modular and easily extensible for Round 1B
-- Font-size alone isn't used for heading detection; multiple cues (bold, caps, numbering, position) are integrated
-
