@@ -7,11 +7,9 @@ import json
 from pathlib import Path
 from scipy.sparse import hstack, csr_matrix
 import os
-import re # Import regex for has_numbering
+import re 
 
-# --- Configuration & Artifact Loading ---
-# This script assumes it's in the project root directory.
-# The model artifacts are in a subdirectory named 'final_heading_model'.
+
 MODEL_DIR = Path(__file__).resolve().parent / 'final_heading_model'
 logger = print
 
@@ -105,7 +103,7 @@ def extract_features_from_pdf(pdf_path: Path) -> pd.DataFrame:
 
     return df
 
-def find_document_title(df: pd.DataFrame) -> (str, pd.Index):
+def find_document_title(df: pd.DataFrame) -> tuple:
     """
     Heuristic: on page 1, pick the top‐of‐page blocks that
     1) use font_size ≥ 90% of max
