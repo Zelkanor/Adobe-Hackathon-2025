@@ -1,0 +1,2 @@
+Round-1A/final_heading_model/*.txt filter=lfs diff=lfs merge=lfs -text
+Round-1A/final_heading_model/*.joblib filter=lfs diff=lfs merge=lfs -text
