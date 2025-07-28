@@ -45,7 +45,7 @@ You’re handed a PDF- but instead of just reading it, you must make sense of it
 - Model size (if any) ≤ 200MB.
 
 ### 📎 Click here to view our Round-1A solution and approach:
-👉 [Round 1A README](https://github.com/Zelkanor/Adobe-Hackathon-2025/Round-1A/README.md)
+👉 [Round 1A README](https://github.com/Zelkanor/Adobe-Hackathon-2025/blob/main/Round-1A/README.md)
 
 
 ## 👤 Round 1B: Persona-Driven Document Intelligence
