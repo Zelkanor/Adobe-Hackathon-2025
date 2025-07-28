@@ -1,12 +1,12 @@
 # Machine Learning - Core libraries needed to load and run the model
-scikit-learn==1.3.2
-lightgbm==4.1.0
-joblib==1.3.2
+scikit-learn
+lightgbm
+joblib
 
 # Data Handling & Scientific Computing
-numpy==1.26.2
-pandas==2.1.3
-scipy==1.11.4
+numpy
+pandas
+scipy
 
 # PDF Processing
-PyMuPDF==1.23.21
+PyMuPDF

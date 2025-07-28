@@ -1,0 +1,12 @@
+# Exclude the virtual environment
+venv/
+.venv/
+
+# Exclude Git history and other configs
+.git/
+.gitignore
+.dockerignore
+
+# Exclude Python cache files
+__pycache__/
+*.pyc

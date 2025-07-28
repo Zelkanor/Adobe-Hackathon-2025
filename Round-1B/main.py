@@ -51,26 +51,21 @@ class JITAR_OnTheFly_Pipeline:
             self.answer_generator = AnswerGenerator(self.shared_llm)
 
     def _determine_strategy(self, job: str) -> str:
-        """Uses the LLM to classify the user's task as exploratory or factual."""
-        logger.info("Determining optimal strategy for the task...")
-        prompt = f"""[INST]
-Read the user's goal. Is the goal exploratory (like planning, brainstorming, or discovering options) or factual (like finding specific instructions or definitions)?
-Answer with only one word: EXPLORATORY or FACTUAL.
-
-Goal: "{job}"
-[/INST]
-"""
-        try:
-            response = self.shared_llm(prompt, max_tokens=10, temperature=0.0)
-            strategy = response['choices'][0]['text'].strip().upper()
-            print(f"Strategy determined: {strategy}")
-            if strategy not in ["EXPLORATORY", "FACTUAL"]:
-                raise ValueError("Invalid strategy returned")
-            logger.success(f"Strategy selected: {strategy}")
-            return strategy
-        except Exception as e:
-            logger.warning(f"Strategy determination failed: {e}. Defaulting to PRECISION.")
-            return "PRECISION" # Default to the safer, more focused strategy
+        """Determines the strategy using a keyword-based heuristic."""
+        logger.info("Determining optimal strategy via keyword heuristic...")
+        
+        EXPLORATORY_KEYWORDS = [
+            'plan', 'prepare', 'review', 'analyze', 'compare', 
+            'discover', 'explore', 'summarize', 'brainstorm', 'itinerary', 'trip'
+        ]
+        
+        job_lower = job.lower()
+        if any(keyword in job_lower for keyword in EXPLORATORY_KEYWORDS):
+            logger.success("Exploratory keywords found. Strategy selected: EXPLORATORY")
+            return "EXPLORATORY"
+        
+        logger.success("No exploratory keywords found. Strategy selected: PRECISION")
+        return "PRECISION"
 
     def _diversify_candidates(self, candidates: List[Tuple[Any, float]], num_final: int = 5) -> List[Tuple[Any, float]]:
         """
