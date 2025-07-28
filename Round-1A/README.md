@@ -1,177 +1,115 @@
-📄 Adobe Hackathon 2025 — Round 1A: Structured Outline Extractor
-================================================================
+-----
 
-🔍 Problem Statement
---------------------
+# 📄 Adobe Hackathon 2025 — Round 1A
 
-Given a PDF document, extract its structured outline — including the document title and all internal headings (H1, H2, H3) along with their page numbers — and return this in a standardized JSON format.
+## Structured Outline Extractor
 
-Example output:
+### 🔍 Problem Statement
 
-{"title": "Annual Business Report","outline": \[{ "level": "H1", "text": "Executive Summary", "page": 2 },{ "level": "H2", "text": "Financial Highlights", "page": 3 }\]}
+Given a PDF document, the mission is to extract its structured outline—including the document title and all internal headings (H1, H2, H3) with their corresponding page numbers—and output this information in a standardized JSON format.
 
-Our approach is a hybrid solution: we combine rule-based heuristics with a trained machine learning model for heading detection, ensuring both precision and adaptability across document types.
+**Example Output:**
 
-⚙️ Approach Overview
---------------------
+```json
+{
+  "title": "Annual Business Report",
+  "outline": [
+    { "level": "H1", "text": "Executive Summary", "page": 2 },
+    { "level": "H2", "text": "Financial Highlights", "page": 3 }
+  ]
+}
+```
 
-### 🧠 Training Strategy
+Our solution is a hybrid approach, combining rule-based heuristics with a trained machine learning model to ensure both high precision and robust adaptability across diverse document types.
 
-The training pipeline is implemented in training.py and is divided into two phases:
+-----
 
-1.  Data Cleaning & Preprocessing
-    
+### ⚙️ Our Approach
 
-*   Source datasets: DocLayNet and DocBank were chosen for their diverse layout annotations and high-quality labels.
-    
-*   A shared schema was enforced using a custom feature extraction engine (common\_features.py), producing text + layout features per text block (font size, alignment, caps ratio, spacing, etc.).
-    
-*   Titles were removed using a heuristic: the largest, topmost text block on the first page was excluded to avoid confusion with H1 headings.
-    
-*   Only relevant heading blocks (H1, H2, H3) were retained.
-    
-*   Final output: cleaned\_for\_training.csv — used for model training.
-    
+Our system is divided into two distinct pipelines: one for training the heading detection model and one for performing inference on new documents.
 
-1.  Model Training with LightGBM
-    
+#### Training Strategy (`training.py`)
 
-We use a LightGBM multiclass classifier trained on:
+The training pipeline is designed to create a high-quality dataset and train a compact, efficient classifier.
 
-*   Layout features (numerical, boolean, categorical)
-    
-*   Text features vectorized via TF-IDF (character n-grams, range 2–5)
-    
+  * **Phase 1: Data Preparation**
 
-Key benefits of LightGBM:
+      * **Source Datasets**: We leveraged the **DocLayNet** and **DocBank** datasets for their rich layout annotations and high-quality labels.
+      * **Feature Engineering**: A custom feature extraction engine (`common_features.py`) was used to create a shared schema, producing a vector of text and layout features for each text block (e.g., font size, alignment, caps ratio, vertical spacing).
+      * **Data Cleaning**: A title-detection heuristic (largest, topmost text on the first page) was used to remove document titles from the training data, preventing confusion with H1 headings. Only relevant heading blocks (H1, H2, H3) and paragraphs were retained.
+      * **Final Dataset**: The output, `cleaned_for_training.csv`, serves as the input for model training.
 
-*   Efficient with tabular + sparse data
-    
-*   Incremental training support (chunk-wise model updates)
-    
-*   Highly interpretable and compact model (<10MB)
-    
+  * **Phase 2: Model Training with LightGBM**
 
-The model is trained in chunks to avoid memory overflow on large datasets. Artifacts saved to final\_heading\_model/:
+      * **Model Choice**: We selected a **LightGBM** multiclass classifier due to its exceptional performance with a mix of tabular and sparse data. It was trained on:
+          * Numerical, boolean, and categorical layout features.
+          * Text features vectorized using character-level **TF-IDF** (n-grams from 2 to 5).
+      * **Key Advantages**: LightGBM is highly efficient, supports incremental training (allowing us to process large datasets in chunks), and produces a highly compact (\<10MB) and interpretable final model.
+      * **Model Artifacts**: The final trained components are saved to the `final_heading_model/` directory:
+          * `lgbm_model.txt`
+          * `tfidf_vectorizer.joblib`
+          * Feature schemas and a `label_map.joblib`
 
-*   lgbm\_model.txt
-    
-*   tfidf\_vectorizer.joblib
-    
-*   feature schemas (numerical, categorical, dummy columns)
-    
-*   label\_map.joblib
-    
+#### Prediction Pipeline (`predict.py`)
 
-### 🔎 Prediction Strategy (predict.py)
+The inference pipeline is optimized for fast, offline execution within a Docker container.
 
-predict.py implements the complete inference pipeline, optimized for Docker execution.
+1.  **PDF Parsing**: **PyMuPDF** extracts text blocks and their rich metadata (bounding boxes, font info, etc.). Feature values are then computed to match the training schema.
+2.  **Title Detection**: A heuristic is first applied to identify and extract the document's main title, which is then excluded from the heading prediction candidates.
+3.  **Document Type Classification**: To handle edge cases, each PDF is classified as:
+      * `standard` → The ML model is used for prediction.
+      * `stylized` (e.g., flyers, posters) → A rule-based H1 detection is used.
+      * `form` → Heading extraction is skipped as it's not applicable.
+4.  **Feature Preparation**: Text features are vectorized using the saved TF-IDF model, and categorical features are one-hot encoded.
+5.  **LightGBM Inference**: The trained model predicts a heading level for each text block. The final predictions are formatted into the required JSON structure.
 
-1.  PDF Parsing
-    
+-----
 
-*   PyMuPDF is used to extract text blocks and bounding boxes.
-    
-*   Feature values (layout + formatting) are computed to match training.
-    
+### 📂 Directory Structure
 
-1.  Document Title Detection
-    
+```
+.
+├── final_heading_model/  # Saved model artifacts
+├── training/training.py  # Model training script
+├── input/                # PDF input folder (mounted in Docker)
+├── output/               # Output JSONs are written here
+├── Dockerfile
+├── predict.py            # The main inference script for the container
 
-*   Heuristic: select the topmost, largest, centered text block on the first page.
-    
-*   The title is extracted and excluded from heading candidates.
-    
+```
 
-1.  Document Type Classification
-    
+-----
 
-We classify each input PDF into one of:
+### 🐳 Docker Build & Run Instructions
 
-*   standard → uses ML model
-    
-*   stylized → uses rule-based H1 detection
-    
-*   form → skips heading extraction
-    
+To build and run this solution in the evaluation environment, follow these steps.
 
-This ensures robust performance across diverse formats like flyers and forms.
+1.  **Build the Docker Image**
 
-1.  Feature Preparation
-    
+    ```bash
+    docker build --platform=linux/amd64 -t mysolutionname:somerandomidentifier .
+    ```
 
-*   TF-IDF is applied to the text
-    
-*   One-hot encoding is applied to alignment categories using saved dummy columns
-    
-*   Numerical + boolean features are normalized
-    
+2.  **Prepare Input & Output Folders**
+    Ensure your local directory contains:
 
-1.  LightGBM Inference
-    
+      * An `input/` folder with the `.pdf` files to be processed.
+      * An `output/` folder (can be empty) where the results will be saved.
 
-*   The trained model predicts heading levels for each block (H1/H2/H3)
-    
-*   Predictions are mapped to JSON format with block text and page number
-    
+3.  **Run the Container**
 
-Final output is saved as filename.json in /app/output
+    ```bash
+    docker run --rm -v $(pwd)/input:/app/input -v $(pwd)/output:/app/output --network none mysolutionname:somerandomidentifier
+    ```
 
-📂 Directory Structure
-----------------------
+4.  **Verify Output**
+    For every `filename.pdf` in the `input` folder, a corresponding `filename.json` will be created in the `output` folder.
 
-.├── input/ # PDF input folder (mounted in Docker)├── output/ # Output JSONs written here├── Dockerfile├── training.py # Model training script├── predict.py # PDF inference script├── common\_features.py # Feature extraction logic├── process\_docbank.py # Dataset preparation├── process\_doclaynet.py # Dataset preparation├── merge\_datasets.py # Merge DocLayNet + DocBank└── final\_heading\_model/ # Saved model artifacts
+-----
 
-🐳 Docker Instructions
-----------------------
+### 🧠 Key Advantages of This Approach
 
-To build and run your solution in Adobe’s evaluation environment, follow the exact instructions below:
-
-1.  🏗️ Build the Docker Image
-    
-
-docker build --platform=linux/amd64 -t mysolutionname:somerandomidentifier .
-
-1.  📁 Prepare Input & Output Folders
-    
-
-Ensure your directory contains:
-
-*   input/ folder with .pdf files
-    
-*   output/ folder (can be empty, used to store results)
-    
-
-1.  ▶️ Run the Container
-    
-
-docker run --rm -v $(pwd)/input:/app/input -v $(pwd)/output:/app/output --network none mysolutionname:somerandomidentifier
-
-1.  ✅ Output
-    
-
-For every input.pdf, a corresponding input.json will be saved to output/
-
-Example:
-
-input/├── policy.pdfoutput/├── policy.json
-
-Each JSON contains:
-
-*   document title (automatically detected)
-    
-*   outline: list of { level, text, page }
-    
-
-🧠 Why This Approach Works
---------------------------
-
-*   Rules handle structure where ML struggles (e.g., titles, forms)
-    
-*   ML handles nuanced layout/text variations that rules cannot generalize
-    
-*   LightGBM + char-level TF-IDF capture multilingual, multi-style document formats
-    
-*   Fully offline & efficient: Docker runs without internet, model is under 10MB
-    
-*   Modular: title detection, doc classification, and heading prediction are independently swappable
+  * **Hybrid Power**: Rules handle predictable structures (titles, forms), while the ML model handles nuanced layouts that rules can't generalize.
+  * **Efficient & Compact**: The entire solution is fully offline. The LightGBM model is under 10MB, and the dependency footprint is minimized for a small Docker image.
+  * **Robust**: The document type classification prevents the ML model from making poor predictions on unconventional layouts like forms or posters.
+  * **Modular**: Title detection, document classification, and heading prediction are independent components that can be tuned or swapped.
