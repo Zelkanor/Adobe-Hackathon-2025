@@ -72,7 +72,7 @@ Build a system that analyzes a collection of PDFs and extracts the most relevant
 - No network access
 
 ### 📎 Click here to view our Round-1B solution and approach:
-👉 [Round 1B README](https://github.com/Zelkanor/Adobe-Hackathon-2025/Round-1B/README.md)
+👉 [Round 1B README](https://github.com/Zelkanor/Adobe-Hackathon-2025/blob/main/Round-1B/README.md)
 
 ## License
 This project is licensed under the MIT License.
