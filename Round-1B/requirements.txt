@@ -1,0 +1,19 @@
+# --- Core Pipeline & ML ---
+sentence-transformers
+faiss-cpu
+rank_bm25
+flashrank
+llama-cpp-python
+onnxruntime # Explicitly add for flashrank's ONNX models
+
+# --- Document Parsing (Layout-Aware) ---
+# This installs unstructured and all local inference dependencies (vision models, etc.)
+unstructured[pdf]
+
+# This is needed for some underlying unstructured image processing
+Pillow
+
+# --- Utilities ---
+pyyaml
+numpy
+loguru

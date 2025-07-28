@@ -1,0 +1,32 @@
+# -------------------------------------------------
+# JITAR Pipeline Configuration
+# -------------------------------------------------
+
+# Model Identifiers (from Hugging Face or local paths)
+embedding_model: "models/all-MiniLM-L6-v2"
+reranker_model: "models/mxbai-rerank-base-v1"
+# https://huggingface.co/Qwen/Qwen2-1.5B-Instruct-GGUF
+llm:
+  model_path: "models/qwen2.5-1.5b-instruct-q2_k.gguf"
+  n_ctx: 8192      # Context window size
+  n_gpu_layers: 0  # Set to 0 for CPU-only execution
+
+# YOLOv10 model for Document Layout Analysis
+# https://github.com/moured/YOLOv10-Document-Layout-Analysis
+dla_model_path: "models/yolov10n_best.pt"
+
+# Data & Index Paths
+processed_docs_path: "data/processed_docs.pkl"
+faiss_index_path: "data/jitar.index"
+bm25_index_path: "data/jitar_bm25.pkl"
+
+# Pipeline Thresholds & Parameters
+retrieval:
+  top_k: 32 # Initial candidates to retrieve
+reranking:
+  fast_rerank_top_n: 18 # Prune to this many candidates with TinyBERT
+  slm_rerank_top_n: 5   # Final candidates after SLM re-ranking
+analysis:
+  # Analyze pages for top candidates until their cumulative score
+  # is > 80% of the total score sum of all candidates.
+  adaptive_dla_score_threshold: 0.8

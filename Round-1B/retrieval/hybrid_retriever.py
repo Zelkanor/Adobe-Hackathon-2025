@@ -1,0 +1,91 @@
+from rank_bm25 import BM25Okapi
+import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from loguru import logger
+from typing import List, Any
+
+class HybridRetriever:
+    def __init__(self, config: dict):
+        logger.info("Initializing Hybrid Retriever...")
+        self.embed_model = SentenceTransformer(config['embedding_model'])
+        self.top_k = config['retrieval']['top_k']
+        self.corpus_elements = None
+        self.bm25_index = None
+        self.faiss_index = None
+
+    def build_indices(self, all_elements: List[Any]):
+        """Builds BM25 and Faiss indices from a flat list of unstructured Elements."""
+        logger.info(f"Building in-memory indices for {len(all_elements)} semantic chunks...")
+        self.corpus_elements = all_elements
+        
+        tokenized_corpus = [el.text.split(" ") for el in self.corpus_elements]
+        self.bm25_index = BM25Okapi(tokenized_corpus)
+
+        embeddings = self.embed_model.encode([el.text for el in self.corpus_elements], show_progress_bar=True)
+        dimension = embeddings.shape[1]
+        self.faiss_index = faiss.IndexFlatL2(dimension)
+        self.faiss_index.add(embeddings)
+
+    def retrieve(self, query: str, all_elements: List[Any]) -> List[tuple]:
+        """Performs hybrid search over the corpus of unstructured Elements."""
+        if self.corpus_elements is None or len(self.corpus_elements) != len(all_elements):
+            self.build_indices(all_elements)
+
+        tokenized_query = query.split(" ")
+        bm25_scores = self.bm25_index.get_scores(tokenized_query)
+        
+        query_embedding = self.embed_model.encode([query])
+        distances, faiss_indices = self.faiss_index.search(query_embedding, len(self.corpus_elements))
+        
+        norm_bm25 = (bm25_scores - np.min(bm25_scores)) / (np.max(bm25_scores) - np.min(bm25_scores) + 1e-6)
+        norm_faiss = 1 - (distances[0] / (np.max(distances[0]) + 1e-6))
+        
+        faiss_score_map = {idx: score for idx, score in zip(faiss_indices[0], norm_faiss)}
+        
+        combined_scores = [
+            (0.4 * norm_bm25[i] + 0.6 * faiss_score_map.get(i, 0))
+            for i in range(len(self.corpus_elements))
+        ]
+
+        # FIX: Access metadata with dot notation (el.metadata.filename)
+        scored_candidates = sorted(
+            [(score, (el.metadata.filename, el)) for score, el in zip(combined_scores, self.corpus_elements)],
+            key=lambda x: x[0],
+            reverse=True
+        )
+        
+        final_candidates = [(cand, score) for score, cand in scored_candidates[:self.top_k]]
+        
+        logger.success(f"Retrieved {len(final_candidates)} candidates via hybrid search.")
+        return final_candidates
+    
+    def retrieve_for_multiple_queries(self, queries: List[str], all_elements: List[Any]) -> List[tuple]:
+        """Runs retrieval for multiple queries and combines the unique results."""
+        if self.corpus_elements is None or len(self.corpus_elements) != len(all_elements):
+            self.build_indices(all_elements)
+
+        all_candidate_indices = set()
+        for query in queries:
+            # This part is simplified for brevity; it uses the same logic as your original retrieve method
+            # to get top indices for each query
+            tokenized_query = query.split(" ")
+            bm25_indices = np.argsort(self.bm25_index.get_scores(tokenized_query))[::-1]
+            
+            query_embedding = self.embed_model.encode([query])
+            _, faiss_indices = self.faiss_index.search(query_embedding, self.top_k)
+            
+            # Add top results from both methods to a set to get unique candidates
+            for idx in bm25_indices[:self.top_k]:
+                all_candidate_indices.add(idx)
+            for idx in faiss_indices[0]:
+                all_candidate_indices.add(idx)
+        
+        # Create a final candidate list from the unique indices
+        # We assign a dummy score of 1.0 since the reranker will calculate the real scores
+        final_candidates = [
+            ((self.corpus_elements[i].metadata.filename, self.corpus_elements[i]), 1.0) 
+            for i in all_candidate_indices
+        ]
+        logger.success(f"Retrieved {len(final_candidates)} unique candidates from {len(queries)} queries.")
+        return final_candidates
