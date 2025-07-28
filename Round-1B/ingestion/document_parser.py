@@ -11,7 +11,7 @@ from PIL import Image
 
 def parse_document(pdf_path: str) -> List[Any]:
     """
-    Parses a PDF using a layout-aware 'hi_res' strategy for semantic chunking.
+    Parses a PDF using a layout-aware 'fast' strategy for semantic chunking.
     This directly implements the "Layout-Aware Ingestion" stage from your research.
     
     Args:

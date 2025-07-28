@@ -4,7 +4,7 @@ faiss-cpu
 rank_bm25
 flashrank
 llama-cpp-python
-onnxruntime # Explicitly add for flashrank's ONNX models
+onnxruntime 
 
 # --- Document Parsing (Layout-Aware) ---
 # This installs unstructured and all local inference dependencies (vision models, etc.)

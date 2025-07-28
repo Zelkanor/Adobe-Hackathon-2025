@@ -165,7 +165,7 @@ class JITAR_OnTheFly_Pipeline:
         
     def shutdown(self):
         """
-        ## FIX: Explicitly deallocates the shared LLM to release resources cleanly.
+        Explicitly deallocates the shared LLM to release resources cleanly.
         """
         if self.shared_llm is not None:
             logger.info("Deallocating shared LLM to free up memory...")

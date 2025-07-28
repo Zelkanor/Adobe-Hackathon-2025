@@ -21,7 +21,7 @@ Text Chunk: "{text_chunk}"
 
     def _clean_and_validate_prose(self, text: str, original_chunk: str) -> str:
         """
-        A simple and robust function to clean the LLM's output and validate it.
+        A simple function to clean the LLM's output and validate it.
         """
         cleaned_text = text.strip()
         
