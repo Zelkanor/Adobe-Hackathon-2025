@@ -1,0 +1,8 @@
+# Exclude the data folder
+data/
+
+# You can also exclude other things you don't need in the final image
+.git/
+.venv/
+__pycache__/
+*.pyc

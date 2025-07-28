@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import List, Tuple, Any
 import concurrent.futures
 from pathlib import Path
+import argparse
 
 # Import all pipeline components
 from ingestion.document_parser import parse_document
@@ -109,7 +110,7 @@ Goal: "{job}"
         return diversified_candidates
 
 
-    def process_request(self, input_data: dict):
+    def process_request(self, input_data: dict,input_dir: Path):
         """Runs the full on-the-fly RAG pipeline for a given JSON request."""
         self._load_models()
 
@@ -117,7 +118,7 @@ Goal: "{job}"
         persona = input_data['persona']['role']
         job = input_data['job_to_be_done']['task']
         doc_infos = input_data['documents']
-        pdf_paths = [f"data/pdfs/{doc['filename']}" for doc in doc_infos]
+        pdf_paths = [input_dir / doc['filename'] for doc in doc_infos]
         query = f"As a {persona}, I need to {job}"
         # 1. Determine the Strategy
         strategy = self._determine_strategy(job)
@@ -177,39 +178,39 @@ Goal: "{job}"
             self.shared_llm = None
             logger.info("Cleanup complete.")
 
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        logger.error("Usage: python main.py <path_to_json_request_file>")
-        sys.exit(1)
-
-    request_file_path = sys.argv[1]
+def main(args):
+    """Main function to run the pipeline."""
     
-    # --- STEP 1: Load the input file in its own isolated block ---
+    # 1. Define paths based on arguments
+    input_json_path = args.input_dir / args.request_filename
+    output_file_path = args.output_dir / "output.json"
+    
+    # Create output directory if it doesn't exist
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 2. Load the input file
     try:
-        logger.info(f"Reading input JSON from: {request_file_path}")
-        with open(request_file_path, 'r') as f:
+        logger.info(f"Reading input JSON from: {input_json_path}")
+        with open(input_json_path, 'r') as f:
             input_data = json.load(f)
         logger.success("Successfully loaded input JSON.")
-    except FileNotFoundError:
-        logger.error(f"FATAL: The input JSON file was not found at '{request_file_path}'")
-        sys.exit(1)
-    except json.JSONDecodeError:
-        logger.error(f"FATAL: The file '{request_file_path}' is not a valid JSON file.")
+    except Exception as e:
+        logger.critical(f"Failed to load input JSON: {e}")
         sys.exit(1)
 
-    # --- STEP 2: Run the main pipeline in a separate block ---
+    # 3. Run the main pipeline
     pipeline = None
     try:
-        pipeline = JITAR_OnTheFly_Pipeline()
-        final_output = pipeline.process_request(input_data)
-        print(json.dumps(final_output, indent=4))
+        pipeline = JITAR_OnTheFly_Pipeline(config_path=args.config)
+        # Pass the input directory to the processing method
+        final_output = pipeline.process_request(input_data, args.input_dir)
         
-    except FileNotFoundError as e:
-        # This will now catch the REAL error
-        logger.critical(f"A FileNotFoundError occurred inside the pipeline!")
-        logger.critical(f"Check the model paths in your 'config.yaml'. The missing file is likely: {e.filename}")
-        sys.exit(1)
+        # 4. FIX: Write final JSON to a file in the output directory
+        logger.info(f"Writing final output to: {output_file_path}")
+        with open(output_file_path, 'w') as f:
+            json.dump(final_output, f, indent=4)
+        logger.success("Pipeline finished successfully.")
+        
     except Exception as e:
         logger.critical(f"An unexpected error occurred during pipeline execution: {e}")
         sys.exit(1)
@@ -217,3 +218,33 @@ if __name__ == "__main__":
         if pipeline:
             pipeline.shutdown()
             gc.collect()
+if __name__ == "__main__":
+    # Using argparse for robust command-line handling, with defaults for Docker
+    parser = argparse.ArgumentParser(description="JITAR Persona-Driven Document Intelligence Pipeline")
+    parser.add_argument(
+        "--input_dir", 
+        type=Path, 
+        default=Path("/app/input"),
+        help="Directory containing input PDFs and the request JSON file."
+    )
+    parser.add_argument(
+        "--output_dir", 
+        type=Path, 
+        default=Path("/app/output"),
+        help="Directory where the output JSON file will be saved."
+    )
+    parser.add_argument(
+        "--request_filename", 
+        type=str, 
+        default="in.json",
+        help="The name of the input request JSON file inside the input directory."
+    )
+    parser.add_argument(
+        "--config", 
+        type=str, 
+        default="config.yaml",
+        help="Path to the configuration YAML file."
+    )
+    
+    args = parser.parse_args()
+    main(args)

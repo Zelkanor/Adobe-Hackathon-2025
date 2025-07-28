@@ -1,4 +1,3 @@
-# analysis/jit_layout_analyzer.py
 from ultralytics import YOLO
 from loguru import logger
 from typing import List
@@ -21,7 +20,6 @@ class JITLayoutAnalyzer:
         for doc in parsed_docs:
             page_images_map[doc.doc_id] = doc.page_images
 
-        # Adaptive Page Threshold Logic
         total_score = sum(score for _, score in candidates)
         cumulative_score = 0
         pages_to_analyze = set()

@@ -1,31 +1,12 @@
-numpy>=1.21.0
-pandas>=1.3.0
+# Machine Learning - Core libraries needed to load and run the model
+scikit-learn==1.3.2
+lightgbm==4.1.0
+joblib==1.3.2
 
-# Machine Learning
-scikit-learn>=1.0.0
-lightgbm>=3.3.0
-scipy>=1.7.0
-joblib>=1.1.0
+# Data Handling & Scientific Computing
+numpy==1.26.2
+pandas==2.1.3
+scipy==1.11.4
 
-# PDF processing
-pdfplumber>=0.7.0
-PyMuPDF>=1.23.0
-
-# OCR and Image processing
-pytesseract>=0.3.10
-Pillow>=9.0.0
-
-# Dataset handling
-datasets>=2.0.0
-
-# Progress bars and utilities
-tqdm>=4.64.0
-
-# System monitoring
-psutil>=5.8.0
-
-# Web requests (for dataset downloads)
-requests>=2.25.0
-
-# Additional utilities
-pathlib2
+# PDF Processing
+PyMuPDF==1.23.21
