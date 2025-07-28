@@ -1,7 +1,6 @@
 import yaml
 import json
 import sys
-import re
 import gc
 from loguru import logger
 from llama_cpp import Llama
@@ -11,10 +10,10 @@ import concurrent.futures
 from pathlib import Path
 import argparse
 
+
 # Import all pipeline components
 from ingestion.document_parser import parse_document
 from retrieval.hybrid_retriever import HybridRetriever
-from analysis.jit_layout_analyzer import JITLayoutAnalyzer
 from reranking.fast_reranker import FastReranker
 from reranking.slm_reranker import SLMTitleGenerator
 from generation.answer_generator import AnswerGenerator
@@ -37,7 +36,6 @@ class JITAR_OnTheFly_Pipeline:
         """Loads all models on demand."""
         if self.shared_llm is None:
             self.retriever = HybridRetriever(self.config)
-            self.layout_analyzer = JITLayoutAnalyzer(self.config)
             self.fast_reranker = FastReranker(self.config)
             
             logger.info(f"Loading SLM from {self.config['llm']['model_path']}...")
@@ -174,40 +172,52 @@ class JITAR_OnTheFly_Pipeline:
             logger.info("Cleanup complete.")
 
 def main(args):
-    """Main function to run the pipeline."""
-    
-    # 1. Define paths based on arguments
-    input_json_path = args.input_dir / args.request_filename
-    output_file_path = args.output_dir / "output.json"
+    """Main function to find and process all JSON requests in the input directory."""
     
     # Create output directory if it doesn't exist
     args.output_dir.mkdir(parents=True, exist_ok=True)
-
-    # 2. Load the input file
-    try:
-        logger.info(f"Reading input JSON from: {input_json_path}")
-        with open(input_json_path, 'r') as f:
-            input_data = json.load(f)
-        logger.success("Successfully loaded input JSON.")
-    except Exception as e:
-        logger.critical(f"Failed to load input JSON: {e}")
+    
+    # FIX: Find all .json files in the input directory
+    json_request_files = list(args.input_dir.glob("*.json"))
+    if not json_request_files:
+        logger.error(f"No JSON request files found in '{args.input_dir}'")
         sys.exit(1)
-
-    # 3. Run the main pipeline
+        
+    logger.info(f"Found {len(json_request_files)} JSON request(s) to process.")
+    
+    # Initialize the pipeline once to avoid reloading models
     pipeline = None
     try:
         pipeline = JITAR_OnTheFly_Pipeline(config_path=args.config)
-        # Pass the input directory to the processing method
-        final_output = pipeline.process_request(input_data, args.input_dir)
         
-        # 4. FIX: Write final JSON to a file in the output directory
-        logger.info(f"Writing final output to: {output_file_path}")
-        with open(output_file_path, 'w') as f:
-            json.dump(final_output, f, indent=4)
-        logger.success("Pipeline finished successfully.")
-        
+        # Loop through each request file and process it
+        for input_json_path in json_request_files:
+            logger.info(f"--- Processing new request: {input_json_path.name} ---")
+            
+            # Define the output path based on the input filename
+            output_filename = f"{input_json_path.stem}_output.json"
+            output_file_path = args.output_dir / output_filename
+            
+            # Load the specific input JSON file
+            try:
+                with open(input_json_path, 'r') as f:
+                    input_data = json.load(f)
+                logger.success(f"Successfully loaded {input_json_path.name}.")
+            except Exception as e:
+                logger.error(f"Failed to load or parse {input_json_path.name}: {e}")
+                continue # Skip to the next file
+
+            # Run the main pipeline process
+            final_output = pipeline.process_request(input_data, args.input_dir)
+            
+            # Write the final JSON to its corresponding output file
+            logger.info(f"Writing final output to: {output_file_path}")
+            with open(output_file_path, 'w') as f:
+                json.dump(final_output, f, indent=4)
+            logger.success(f"Finished processing {input_json_path.name}.")
+
     except Exception as e:
-        logger.critical(f"An unexpected error occurred during pipeline execution: {e}")
+        logger.critical(f"A critical error occurred during pipeline initialization or execution: {e}")
         sys.exit(1)
     finally:
         if pipeline:

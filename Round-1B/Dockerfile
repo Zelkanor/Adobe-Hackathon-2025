@@ -1,24 +1,43 @@
-# Dockerfile for Adobe Hackathon - Round 1B 
+# ----------- Stage 1: Builder -----------
+FROM python:3.10-slim as builder
+WORKDIR /tmp
 
-# Start with a clean base image
-FROM python:3.11-slim
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake ninja-build unzip && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip wheel -r requirements.txt --wheel-dir=/wheels --no-cache-dir
 
-# Set the working directory in the container
+# Install NLTK so we can download data
+RUN pip install --no-index --find-links=/wheels nltk
+
+# Download ALL NLTK "popular" data resources (comprehensive set)
+RUN python -m nltk.downloader -d /tmp/nltk_data all
+
+# Unzip all .zip NLTK resources so every file is available
+RUN find /tmp/nltk_data -name '*.zip' -exec unzip -o {} -d /tmp/nltk_data \; || true
+
+# ----------- Stage 2: Final Image -----------
+FROM python:3.10-slim
 WORKDIR /app
 
-# Install required system dependencies for PDF processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    poppler-utils \
-    build-essential \
-    cmake \
-    && rm -rf /var/lib/apt/lists/*
+    poppler-utils libgomp1 libgl1-mesa-glx libglib2.0-0 tesseract-ocr unzip && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file first to leverage Docker layer caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --from=builder /wheels /wheels
+RUN pip install --upgrade pip && pip install --no-index --find-links=/wheels /wheels/*.whl --no-cache-dir && rm -rf /wheels /root/.cache ~/.cache
 
-# Copy project 
+# Copy the complete nltk_data directory to the standard system path
+COPY --from=builder /tmp/nltk_data /usr/local/share/nltk_data
+
+# Optional: symlink for bulletproof behavior with all NLTK paths
+RUN ln -s /usr/local/share/nltk_data /root/nltk_data || true \
+ && ln -s /usr/local/share/nltk_data /usr/local/nltk_data || true \
+ && ln -s /usr/local/share/nltk_data /usr/share/nltk_data || true \
+ && ln -s /usr/local/share/nltk_data /usr/lib/nltk_data || true
+
+
 COPY . .
 
-# Define the command to run the application
+RUN find . -type d -name '__pycache__' | xargs rm -rf || true
+
 CMD ["python", "main.py"]

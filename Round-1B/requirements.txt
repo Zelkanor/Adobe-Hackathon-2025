@@ -2,9 +2,9 @@
 sentence-transformers
 faiss-cpu
 rank_bm25
-flashrank
 llama-cpp-python
-onnxruntime 
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch 
 
 # --- Document Parsing (Layout-Aware) ---
 # This installs unstructured and all local inference dependencies (vision models, etc.)

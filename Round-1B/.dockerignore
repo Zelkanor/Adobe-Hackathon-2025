@@ -1,12 +1,19 @@
-# Exclude the virtual environment
-venv/
-.venv/
-
-# Exclude Git history and other configs
-.git/
-.gitignore
-.dockerignore
-
-# Exclude Python cache files
-__pycache__/
+__pycache__
 *.pyc
+*.pyo
+*.pyd
+*.ipynb
+tests/
+notebooks/
+*.log
+*.DS_Store
+build/
+dist/
+*.bak
+*.old
+wheels/
+.env
+venv/
+.cache/
+data/raw/
+*.pdf
