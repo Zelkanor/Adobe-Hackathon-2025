@@ -9,14 +9,15 @@ WORKDIR /app
 # Install required system dependencies for PDF processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
+    build-essential \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements file first to leverage Docker layer caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy your entire project (including the local 'models' folder)
-# The .dockerignore file will prevent copying unwanted folders like .venv
+# Copy project 
 COPY . .
 
 # Define the command to run the application
