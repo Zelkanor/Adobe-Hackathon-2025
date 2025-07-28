@@ -1,21 +1,24 @@
-# ----------- Stage 1: Builder -----------
+# ------ Stage 1: Builder ------
 FROM python:3.10-slim as builder
 WORKDIR /tmp
 
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake ninja-build unzip && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake ninja-build unzip && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip wheel -r requirements.txt --wheel-dir=/wheels --no-cache-dir
 
-# Install NLTK so we can download data
 RUN pip install --no-index --find-links=/wheels nltk
 
-# Download ALL NLTK "popular" data resources (comprehensive set)
-RUN python -m nltk.downloader -d /tmp/nltk_data all
+# Download only needed NLTK data resources
+RUN python -m nltk.downloader -d /tmp/nltk_data \
+    punkt averaged_perceptron_tagger averaged_perceptron_tagger_eng punkt_tab
 
-# Unzip all .zip NLTK resources so every file is available
+# Unzip any zipped resources, just to be safe
 RUN find /tmp/nltk_data -name '*.zip' -exec unzip -o {} -d /tmp/nltk_data \; || true
 
-# ----------- Stage 2: Final Image -----------
+# ------ Stage 2: Runtime ------
 FROM python:3.10-slim
 WORKDIR /app
 
@@ -26,15 +29,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /wheels /wheels
 RUN pip install --upgrade pip && pip install --no-index --find-links=/wheels /wheels/*.whl --no-cache-dir && rm -rf /wheels /root/.cache ~/.cache
 
-# Copy the complete nltk_data directory to the standard system path
+# Copy only minimal NLTK data needed
 COPY --from=builder /tmp/nltk_data /usr/local/share/nltk_data
 
-# Optional: symlink for bulletproof behavior with all NLTK paths
+# Symlink for all standard lookup paths
 RUN ln -s /usr/local/share/nltk_data /root/nltk_data || true \
  && ln -s /usr/local/share/nltk_data /usr/local/nltk_data || true \
  && ln -s /usr/local/share/nltk_data /usr/share/nltk_data || true \
  && ln -s /usr/local/share/nltk_data /usr/lib/nltk_data || true
-
 
 COPY . .
 
